@@ -171,267 +171,432 @@ Todos los valores del sistema de diseño se definen como variables CSS en `:root
 
 ## 3. Navbar
 
-### Comportamiento y CSS
+### Resumen de comportamiento por breakpoint
 
-El navbar está fijo en la parte superior con `position: fixed`. Cambia de estado transparente (con efecto glassmorphism) a casi opaco al hacer scroll, comunicando profundidad sin cortar visualmente el contenido.
+El navbar usa una estrategia de tres niveles para evitar que los elementos del centro se superpongan sobre el logo o los botones de la derecha en viewports estrechos.
+
+| Breakpoint | Ancho | Centro | Buscador | Botones derecha |
+|---|---|---|---|---|
+| **Desktop** | ≥ 1024px | Absoluto centrado (links + input) | Inline dentro del centro | "Iniciar sesión" + "Crear cuenta" + carrito |
+| **Tablet** | 768–1023px | Flex estático (solo links) | Ícono de lupa → barra expandible | "Iniciar sesión" + carrito (sin "Crear cuenta") |
+| **Mobile** | < 768px | Oculto | Ícono de lupa → barra expandible | Carrito + hamburguesa |
+
+> **Regla clave:** El centro usa `position: absolute` **solo en desktop**. En tablet pasa a flujo normal (`flex: 1; justify-content: center`) para que el layout se distribuya sin colisiones. En mobile se oculta completamente.
+
+---
+
+### Estado del navbar
+
+El navbar cambia de glassmorphism a casi opaco en dos situaciones:
+- Al hacer scroll más de 50px (`isScrolled = true`).
+- Cuando el buscador expandido está abierto (`searchOpen = true`).
+
+Ambas condiciones se unen en el binding de clase: `:class="{ 'is-scrolled': isScrolled || searchOpen }"`.
 
 **Nota crítica:** El efecto `backdrop-filter` solo es visible si el fondo del elemento tiene transparencia (valor alfa menor a 1). Si el fondo es `#FFFFFF` sólido, el efecto no se muestra.
 
-```css
-/* ── NAVBAR BASE ── */
-.vt-navbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 64px;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  padding: 0 32px;
-  gap: 24px;
+---
 
-  /* Estado inicial: glassmorphism */
-  background-color: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px); /* Safari */
-  transition: background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-}
-
-/* Estado scroll: casi opaco */
-.vt-navbar.is-scrolled {
-  background-color: rgba(255, 255, 255, 0.95);
-  box-shadow: var(--vt-shadow-navbar);
-}
-
-/* Ancho máximo del contenido interno */
-.vt-navbar__inner {
-  width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-/* ── PLACEHOLDER DEL LOGO ── */
-.vt-navbar__logo {
-  width: 120px;
-  height: 32px;
-  background-color: #F5F7FA;
-  border-radius: 4px;
-  flex-shrink: 0;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-/* ── ENLACES DE NAVEGACIÓN ── */
-.vt-navbar__link {
-  font-size: 1rem;
-  font-weight: 500;
-  color: var(--vt-text-secondary);
-  text-decoration: none;
-  transition: color 0.3s ease-in-out;
-  white-space: nowrap;
-}
-.vt-navbar__link:hover { color: var(--vt-blue); }
-
-/* ── BUSCADOR ── */
-.vt-navbar__search {
-  position: relative;
-  width: 240px;
-  flex-shrink: 0;
-}
-.vt-navbar__search-input {
-  width: 100%;
-  padding: 8px 14px 8px 38px;
-  background: var(--vt-bg-input);
-  border: 1px solid var(--vt-border-input);
-  border-radius: var(--vt-radius-md);
-  font-family: var(--vt-font-sans);
-  font-size: 0.875rem;
-  color: var(--vt-text-primary);
-  transition: border-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-  outline: none;
-}
-.vt-navbar__search-input::placeholder { color: var(--vt-text-muted); }
-.vt-navbar__search-input:focus {
-  border-color: var(--vt-border-focus);
-  box-shadow: 0 0 0 3px rgba(20, 144, 242, 0.12);
-}
-.vt-navbar__search-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  color: var(--vt-text-muted);
-  pointer-events: none;
-}
-
-/* ── ÍCONO DE CARRITO ── */
-.vt-navbar__cart {
-  position: relative;
-  cursor: pointer;
-  color: var(--vt-text-secondary);
-  transition: color 0.3s ease-in-out;
-}
-.vt-navbar__cart:hover { color: var(--vt-blue); }
-.vt-navbar__cart-icon { width: 24px; height: 24px; }
-.vt-navbar__cart-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  background: var(--vt-gradient);
-  border-radius: var(--vt-radius-full);
-  color: #FFFFFF;
-  font-family: var(--vt-font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ── ESPACIADOR ── */
-.vt-navbar__spacer { flex: 1; }
-```
-
-### JavaScript — Cambio de estado al hacer scroll
-
-```javascript
-// Agregar en el componente Navbar.vue dentro de onMounted()
-// o en el archivo main.js si el navbar es global.
-
-const navbar = document.querySelector('.vt-navbar');
-
-window.addEventListener('scroll', () => {
-  if (window.scrollY > 50) {
-    navbar.classList.add('is-scrolled');
-  } else {
-    navbar.classList.remove('is-scrolled');
-  }
-}, { passive: true });
-```
-
-En Vue 3 con Composition API, dentro de `Navbar.vue`:
+### Vue 3 — Script setup completo
 
 ```vue
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { RouterLink } from 'vue-router';
 
-const isScrolled = ref(false);
+const isScrolled  = ref(false);
+const sidebarOpen = ref(false);
+const searchOpen  = ref(false);
+const searchInput = ref(null); // ref al <input> del buscador expandido
 
 function handleScroll() {
   isScrolled.value = window.scrollY > 50;
+}
+function toggleSidebar() {
+  sidebarOpen.value = !sidebarOpen.value;
+  if (sidebarOpen.value) searchOpen.value = false;
+}
+function closeSidebar() {
+  sidebarOpen.value = false;
+}
+function toggleSearch() {
+  searchOpen.value = !searchOpen.value;
+  if (sidebarOpen.value) sidebarOpen.value = false;
+  if (searchOpen.value) {
+    setTimeout(() => searchInput.value?.focus(), 50); // autofoco al abrir
+  }
+}
+function closeSearch() {
+  searchOpen.value = false;
 }
 
 onMounted(() => window.addEventListener('scroll', handleScroll, { passive: true }));
 onUnmounted(() => window.removeEventListener('scroll', handleScroll));
 </script>
+```
 
+---
+
+### Estructura HTML del template
+
+```vue
 <template>
-  <nav class="vt-navbar" :class="{ 'is-scrolled': isScrolled }">
-    <!-- contenido del navbar -->
+  <!-- El navbar se vuelve opaco al scroll O cuando la búsqueda está abierta -->
+  <nav class="vt-navbar" :class="{ 'is-scrolled': isScrolled || searchOpen }">
+    <div class="vt-navbar__inner">
+
+      <!-- Logo -->
+      <RouterLink to="/" class="vt-navbar__logo" aria-label="VenTech inicio">
+        <span class="vt-navbar__logo-text">VenTech</span>
+      </RouterLink>
+
+      <!-- Centro DESKTOP (≥ 1024px): absoluto, links + buscador inline -->
+      <div class="vt-navbar__center">
+        <RouterLink to="/" class="vt-navbar__link">Inicio</RouterLink>
+        <RouterLink to="/catalogo" class="vt-navbar__link">Productos</RouterLink>
+        <a href="#ofertas" class="vt-navbar__link">Ofertas</a>
+        <div class="vt-navbar__search">
+          <svg class="vt-navbar__search-icon" ...></svg>
+          <input type="text" class="vt-navbar__search-input"
+                 placeholder="Buscar productos..." aria-label="Buscar" />
+        </div>
+      </div>
+
+      <!-- Centro TABLET (768–1023px): flujo normal, solo links -->
+      <div class="vt-navbar__center-compact">
+        <RouterLink to="/" class="vt-navbar__link">Inicio</RouterLink>
+        <RouterLink to="/catalogo" class="vt-navbar__link">Productos</RouterLink>
+        <a href="#ofertas" class="vt-navbar__link">Ofertas</a>
+      </div>
+
+      <!-- Derecha -->
+      <div class="vt-navbar__right">
+        <!-- Ícono lupa: visible en tablet y mobile, oculto en desktop -->
+        <button class="vt-navbar__icon-btn vt-navbar__search-toggle"
+                @click="toggleSearch" :aria-expanded="searchOpen" aria-label="Buscar">
+          <svg ...></svg>
+        </button>
+
+        <RouterLink to="/auth" class="btn-vt-primary vt-navbar__btn">Iniciar sesión</RouterLink>
+        <!-- Oculto en tablet (768–1023px) y mobile -->
+        <RouterLink to="/auth?modo=registro" class="btn-vt-secondary vt-navbar__btn vt-navbar__btn--secondary">
+          Crear cuenta
+        </RouterLink>
+
+        <div class="vt-navbar__cart" role="button" aria-label="Carrito de compras">
+          <svg class="vt-navbar__cart-icon" ...></svg>
+        </div>
+
+        <!-- Hamburguesa: solo en mobile (< 768px) -->
+        <button class="vt-navbar__hamburger" @click="toggleSidebar"
+                aria-label="Menú" :aria-expanded="sidebarOpen">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Barra de búsqueda expandida (tablet y mobile) -->
+    <div class="vt-navbar__searchbar" :class="{ 'is-open': searchOpen }">
+      <div class="vt-navbar__searchbar-inner">
+        <svg class="vt-navbar__searchbar-icon" ...></svg>
+        <input ref="searchInput" type="text" class="vt-navbar__searchbar-input"
+               placeholder="Buscar productos, marcas o categorías..."
+               aria-label="Buscar" @keydown.escape="closeSearch" />
+        <button class="vt-navbar__searchbar-close" @click="closeSearch" aria-label="Cerrar búsqueda">
+          <svg ...></svg>
+        </button>
+      </div>
+    </div>
   </nav>
+
+  <!-- Overlay semitransparente detrás del buscador abierto -->
+  <div class="vt-search-overlay" :class="{ 'is-open': searchOpen }" @click="closeSearch"></div>
+
+  <!-- Overlay del sidebar mobile -->
+  <div class="vt-sidebar-overlay" :class="{ 'is-open': sidebarOpen }" @click="closeSidebar"></div>
+
+  <!-- Sidebar mobile -->
+  <div class="vt-sidebar-mobile" :class="{ 'is-open': sidebarOpen }">
+    <RouterLink to="/" class="vt-navbar__link" @click="closeSidebar">Inicio</RouterLink>
+    <RouterLink to="/catalogo" class="vt-navbar__link" @click="closeSidebar">Productos</RouterLink>
+    <a href="#ofertas" class="vt-navbar__link" @click="closeSidebar">Ofertas</a>
+    <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px;">
+      <RouterLink to="/auth" class="btn-vt-primary" @click="closeSidebar">Iniciar sesión</RouterLink>
+      <RouterLink to="/auth?modo=registro" class="btn-vt-secondary" @click="closeSidebar">Crear cuenta</RouterLink>
+    </div>
+  </div>
 </template>
 ```
 
 ---
 
-### Elementos del navbar de izquierda a derecha (desktop)
+### CSS completo del Navbar
 
-1. **Placeholder del logo** — Rectángulo 120×32px, fondo `#F5F7FA`, `border-radius: 4px`. Navega a `/` al hacer clic.
-2. **Inicio** — Body Base, peso 500, `--vt-text-secondary`. Hover: `--vt-blue`.
-3. **Productos** — Mismo estilo que Inicio.
-4. **Ofertas** — Mismo estilo que Inicio.
-5. **Buscador** — Campo de 240px con ícono de lupa integrado a la izquierda (ver CSS arriba).
-6. **Botón "Iniciar Sesión"** — Botón primario con gradiente (`.btn-vt-primary`).
-7. **Botón "Crear cuenta"** — Botón secundario con borde azul (`.btn-vt-secondary`).
-8. **Ícono carrito** — SVG 24×24px con badge circular de conteo.
+```css
+/* ── NAVBAR BASE ── */
+.vt-navbar {
+  position: fixed; top: 0; left: 0; width: 100%;
+  z-index: 1000;
+  background-color: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+.vt-navbar.is-scrolled {
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--vt-shadow-navbar);
+}
+
+.vt-navbar__inner {
+  width: 100%; max-width: 1280px; margin: 0 auto;
+  height: 64px;
+  display: flex; align-items: center;
+  padding: 0 32px;
+  position: relative; /* necesario para el posicionamiento absoluto del centro en desktop */
+}
+
+/* ── LOGO ── */
+.vt-navbar__logo { display: flex; align-items: center; text-decoration: none; flex-shrink: 0; }
+.vt-navbar__logo-text {
+  font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em;
+  background: var(--vt-gradient);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+
+/* ── CENTRO DESKTOP: links + buscador (≥ 1024px) ── */
+/* Posicionado absolutamente para quedar centrado sin importar el ancho del logo o la derecha */
+.vt-navbar__center {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 20px;
+}
+
+/* ── CENTRO COMPACTO: solo links (768–1023px) ── */
+/* En flujo normal: se distribuye entre logo y derecha sin riesgo de superposición */
+.vt-navbar__center-compact {
+  display: none;
+  flex: 1; justify-content: center; align-items: center; gap: 24px;
+  margin: 0 16px;
+}
+
+/* ── LINKS ── */
+.vt-navbar__link {
+  font-size: 1rem; font-weight: 500; color: var(--vt-text-secondary);
+  text-decoration: none; white-space: nowrap;
+}
+.vt-navbar__link:hover { color: var(--vt-blue); }
+.vt-navbar__link.router-link-active { color: var(--vt-blue); }
+
+/* ── BUSCADOR DESKTOP (dentro de .vt-navbar__center) ── */
+.vt-navbar__search { position: relative; width: 220px; flex-shrink: 0; }
+.vt-navbar__search-input {
+  width: 100%; padding: 7px 14px 7px 36px;
+  background: var(--vt-bg-input); border: 1px solid var(--vt-border-input);
+  border-radius: var(--vt-radius-md); font-family: var(--vt-font-sans);
+  font-size: 0.875rem; color: var(--vt-text-primary); outline: none;
+}
+.vt-navbar__search-input::placeholder { color: var(--vt-text-muted); }
+.vt-navbar__search-input:focus {
+  border-color: var(--vt-border-focus);
+  box-shadow: 0 0 0 3px rgba(20, 144, 242, 0.12);
+  background: #fff;
+}
+.vt-navbar__search-icon {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; color: var(--vt-text-muted); pointer-events: none;
+}
+
+/* ── DERECHA ── */
+.vt-navbar__right {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+}
+.vt-navbar__btn { font-size: 0.875rem; padding: 7px 16px; }
+
+/* Ícono de búsqueda: oculto en desktop, visible en tablet y mobile */
+.vt-navbar__search-toggle { display: none; }
+.vt-navbar__icon-btn {
+  background: none; border: none; cursor: pointer; padding: 6px;
+  color: var(--vt-text-secondary); border-radius: var(--vt-radius-md);
+  display: flex; align-items: center; justify-content: center;
+}
+.vt-navbar__icon-btn:hover { color: var(--vt-blue); background: var(--vt-bg-subtle); }
+.vt-navbar__icon-btn svg { width: 20px; height: 20px; display: block; }
+
+/* ── CARRITO ── */
+.vt-navbar__cart { position: relative; cursor: pointer; color: var(--vt-text-secondary); }
+.vt-navbar__cart:hover { color: var(--vt-blue); }
+.vt-navbar__cart-icon { width: 22px; height: 22px; display: block; }
+.vt-navbar__cart-badge {
+  position: absolute; top: -6px; right: -6px;
+  min-width: 18px; height: 18px; padding: 0 4px;
+  background: var(--vt-gradient);
+  border-radius: var(--vt-radius-full);
+  color: #FFFFFF; font-family: var(--vt-font-mono);
+  font-size: 10px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── HAMBURGUESA (solo mobile) ── */
+.vt-navbar__hamburger {
+  display: none; flex-direction: column; gap: 5px;
+  cursor: pointer; padding: 4px; background: none; border: none;
+}
+.vt-navbar__hamburger span {
+  display: block; width: 22px; height: 2px;
+  background: var(--vt-text-secondary); border-radius: 2px;
+}
+
+/* ── BARRA DE BÚSQUEDA EXPANDIDA (tablet y mobile) ── */
+/* Se desliza hacia abajo con max-height para animación suave */
+.vt-navbar__searchbar {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.3s ease-in-out;
+}
+.vt-navbar__searchbar.is-open { max-height: 72px; }
+
+.vt-navbar__searchbar-inner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 32px 12px;
+  position: relative;
+}
+.vt-navbar__searchbar-icon {
+  position: absolute; left: 48px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; color: var(--vt-text-muted); pointer-events: none;
+}
+.vt-navbar__searchbar-input {
+  flex: 1;
+  padding: 9px 14px 9px 38px;
+  background: var(--vt-bg-input); border: 1px solid var(--vt-border-input);
+  border-radius: var(--vt-radius-md); font-family: var(--vt-font-sans);
+  font-size: 0.9375rem; color: var(--vt-text-primary); outline: none;
+}
+.vt-navbar__searchbar-input::placeholder { color: var(--vt-text-muted); }
+.vt-navbar__searchbar-input:focus {
+  border-color: var(--vt-border-focus);
+  box-shadow: 0 0 0 3px rgba(20, 144, 242, 0.12);
+  background: #fff;
+}
+.vt-navbar__searchbar-close {
+  flex-shrink: 0; background: none; border: none; cursor: pointer; padding: 6px;
+  color: var(--vt-text-muted); border-radius: var(--vt-radius-md);
+  display: flex; align-items: center;
+}
+.vt-navbar__searchbar-close:hover { color: var(--vt-text-primary); background: var(--vt-bg-overlay); }
+.vt-navbar__searchbar-close svg { width: 18px; height: 18px; }
+
+/* ── OVERLAY DEL BUSCADOR ── */
+/* Solo bloquea clics, sin fondo oscuro — el is-scrolled ya oscurece el navbar */
+.vt-search-overlay {
+  position: fixed; inset: 0; z-index: 999;
+  opacity: 0; visibility: hidden;
+  transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+}
+.vt-search-overlay.is-open { opacity: 1; visibility: visible; }
+
+/* ── SIDEBAR Y OVERLAY MOBILE ── */
+.vt-sidebar-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
+  z-index: 1050; opacity: 0; visibility: hidden;
+  transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+}
+.vt-sidebar-overlay.is-open { opacity: 1; visibility: visible; }
+
+.vt-sidebar-mobile {
+  position: fixed; top: 0; left: 0; height: 100%; width: 280px;
+  background: #fff; box-shadow: var(--vt-shadow-dropdown);
+  z-index: 1100; padding: 80px 24px 24px;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease-in-out;
+  display: flex; flex-direction: column; gap: 20px;
+}
+.vt-sidebar-mobile.is-open { transform: translateX(0); }
+
+/* ── BREAKPOINTS ── */
+
+/* Tablet (768–1023px): centro compacto, lupa visible, sin "Crear cuenta" */
+@media (max-width: 1023px) {
+  .vt-navbar__center         { display: none; }   /* ocultar centro absoluto */
+  .vt-navbar__center-compact { display: flex; }   /* mostrar centro en flujo */
+  .vt-navbar__search-toggle  { display: flex; }   /* mostrar ícono lupa */
+  .vt-navbar__btn--secondary { display: none; }   /* ocultar "Crear cuenta" */
+  .vt-navbar__searchbar-inner { padding: 10px 24px 12px; }
+  .vt-navbar__searchbar-icon  { left: 40px; }
+}
+
+/* Mobile (< 768px): sin links de centro, sin botones, hamburguesa y lupa */
+@media (max-width: 767px) {
+  .vt-navbar__inner          { padding: 0 16px; height: 56px; }
+  .vt-navbar__center-compact { display: none; }   /* ocultar links de centro */
+  .vt-navbar__btn            { display: none; }   /* ocultar todos los botones */
+  .vt-navbar__hamburger      { display: flex; }   /* mostrar hamburguesa */
+  .vt-navbar__searchbar-inner { padding: 10px 16px 12px; }
+  .vt-navbar__searchbar-icon  { left: 32px; }
+}
+```
+
+---
+
+### Elementos del navbar de izquierda a derecha (desktop ≥ 1024px)
+
+1. **Logo** — Texto "VenTech" con gradiente `--vt-gradient`, `font-weight: 800`. Navega a `/` al hacer clic.
+2. **Inicio / Productos / Ofertas** — Body Base, peso 500, `--vt-text-secondary`. Hover y `router-link-active`: `--vt-blue`.
+3. **Buscador** — Campo de 220px con ícono de lupa a la izquierda, centrado junto a los links.
+4. **Botón "Iniciar sesión"** — `.btn-vt-primary` con `font-size: 0.875rem; padding: 7px 16px`.
+5. **Botón "Crear cuenta"** — `.btn-vt-secondary` con los mismos tamaños. **Oculto en tablet y mobile.**
+6. **Carrito** — SVG 22×22px. Con badge circular de conteo cuando haya ítems.
 
 ---
 
 ### Estado autenticado (usuario con sesión activa)
 
-Los botones "Iniciar Sesión" y "Crear cuenta" se reemplazan por el avatar del usuario y un menú desplegable.
+Los botones "Iniciar sesión" y "Crear cuenta" se reemplazan por el avatar del usuario y un menú desplegable.
 
 ```css
 /* ── AVATAR DEL USUARIO ── */
 .vt-navbar__user {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; position: relative;
 }
 .vt-navbar__avatar {
-  width: 32px;
-  height: 32px;
+  width: 32px; height: 32px;
   border-radius: var(--vt-radius-full);
   background: var(--vt-gradient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #FFFFFF; font-size: 12px; font-weight: 700; flex-shrink: 0;
 }
 .vt-navbar__user-label {
-  font-size: 0.875rem;
-  color: var(--vt-text-secondary);
-  transition: color 0.3s ease-in-out;
+  font-size: 0.875rem; color: var(--vt-text-secondary);
 }
 .vt-navbar__user:hover .vt-navbar__user-label { color: var(--vt-blue); }
 
 /* ── DROPDOWN DE USUARIO ── */
-/* Usa visibility + opacity para que los clics no atraviesen el elemento oculto */
 .vt-navbar__dropdown {
-  position: absolute;
-  top: calc(100% + 12px);
-  right: 0;
-  min-width: 180px;
-  background: #FFFFFF;
+  position: absolute; top: calc(100% + 12px); right: 0;
+  min-width: 180px; background: #FFFFFF;
   border: 1px solid var(--vt-border-light);
   border-radius: var(--vt-radius-lg);
   box-shadow: var(--vt-shadow-dropdown);
   padding: 8px 0;
-
-  visibility: hidden;
-  opacity: 0;
-  transform: translateY(-8px);
-  transition: opacity 0.3s ease-in-out,
-              transform 0.3s ease-in-out,
-              visibility 0.3s ease-in-out;
+  visibility: hidden; opacity: 0; transform: translateY(-8px);
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out, visibility 0.3s ease-in-out;
 }
 .vt-navbar__user:hover .vt-navbar__dropdown,
 .vt-navbar__dropdown.is-open {
-  visibility: visible;
-  opacity: 1;
-  transform: translateY(0);
+  visibility: visible; opacity: 1; transform: translateY(0);
 }
 .vt-navbar__dropdown-item {
-  display: block;
-  padding: 10px 16px;
-  font-size: 0.875rem;
-  color: var(--vt-text-secondary);
-  text-decoration: none;
-  cursor: pointer;
-  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+  display: block; padding: 10px 16px;
+  font-size: 0.875rem; color: var(--vt-text-secondary);
+  text-decoration: none; cursor: pointer;
 }
 .vt-navbar__dropdown-item:hover {
-  background-color: var(--vt-bg-subtle);
-  color: var(--vt-blue);
+  background-color: var(--vt-bg-subtle); color: var(--vt-blue);
 }
 .vt-navbar__dropdown-item--danger { color: var(--vt-error); }
 .vt-navbar__dropdown-item--danger:hover {
-  background-color: var(--vt-error-bg);
-  color: var(--vt-error);
+  background-color: var(--vt-error-bg); color: var(--vt-error);
 }
 ```
 
@@ -441,79 +606,15 @@ Los botones "Iniciar Sesión" y "Crear cuenta" se reemplazan por el avatar del u
 
 Comparte altura (64px), posición fija y el mismo comportamiento de scroll. Difiere en el contenido:
 
-- **Izquierda:** Placeholder del logo (mismo que en navbar público).
-- **Centro:** Texto `"Panel de Administración"`, Body Base, `font-weight: 600`, `--vt-text-primary`. Centrado con `flex: 1; text-align: center`.
-- **Derecha:** Ícono campana (notificaciones con badge numérico) + avatar del administrador con iniciales y dropdown de sesión.
+- **Izquierda:** Logo idéntico al navbar público.
+- **Centro:** Texto `"Panel de Administración"`, Body Base, `font-weight: 600`, `--vt-text-primary`.
+- **Derecha:** Ícono campana (notificaciones con badge) + avatar del administrador con dropdown.
 
 ```css
 .vt-navbar--admin .vt-navbar__title {
-  flex: 1;
-  text-align: center;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--vt-text-primary);
+  flex: 1; text-align: center;
+  font-size: 1rem; font-weight: 600; color: var(--vt-text-primary);
 }
-```
-
----
-
-### Navbar responsive (mobile < 768px)
-
-En móvil los enlaces y el buscador se ocultan. Aparece un ícono hamburguesa que despliega un sidebar lateral con deslizamiento horizontal.
-
-```css
-/* Ocultar en mobile */
-@media (max-width: 767px) {
-  .vt-navbar { height: 56px; padding: 0 16px; }
-  .vt-navbar__link,
-  .vt-navbar__search { display: none; }
-  .vt-navbar__hamburger { display: flex; }
-}
-
-/* Hamburguesa */
-.vt-navbar__hamburger {
-  display: none;
-  flex-direction: column;
-  gap: 5px;
-  cursor: pointer;
-  padding: 4px;
-}
-.vt-navbar__hamburger span {
-  display: block;
-  width: 22px;
-  height: 2px;
-  background: var(--vt-text-secondary);
-  border-radius: 2px;
-  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
-}
-
-/* Sidebar mobile */
-.vt-sidebar-mobile {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 280px;
-  background: #FFFFFF;
-  box-shadow: var(--vt-shadow-dropdown);
-  z-index: 1100;
-  padding: 80px 24px 24px;
-  transform: translateX(-100%);
-  transition: transform 0.3s ease-in-out;
-}
-.vt-sidebar-mobile.is-open { transform: translateX(0); }
-
-/* Overlay oscuro detrás del sidebar */
-.vt-sidebar-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 1050;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
-}
-.vt-sidebar-overlay.is-open { opacity: 1; visibility: visible; }
 ```
 
 ---

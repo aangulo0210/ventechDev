@@ -1,283 +1,527 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import Navbar from '@/components/Navbar.vue';
 import Footer from '@/components/Footer.vue';
 import ProductCard from '@/components/ProductCard.vue';
 
-const productos = ref([]);
-const cargandoProductos = ref(true);
+/* ── CATEGORÍAS ── */
+const CATEGORIAS = [
+  { id: 'ofertas',        label: 'Precios imperdibles' },
+  { id: 'Celulares',      label: 'Celulares'           },
+  { id: 'Computadores',   label: 'Computadores'        },
+  { id: 'TV y Monitores', label: 'TV y Monitores'      },
+  { id: 'Audio',          label: 'Audio'               },
+  { id: 'Periféricos',    label: 'Periféricos'         },
+];
 
-onMounted(async () => {
-  try {
-    const res = await fetch('/api/productos/listar');
-    const json = await res.json();
-    if (json.success) {
-      productos.value = json.data.slice(0, 4);
-    }
-  } catch {
-    // silencioso — la sección queda vacía si la API no responde
-  } finally {
-    cargandoProductos.value = false;
-  }
+const PRODUCTOS_POR_PAGINA = 16;
+
+/* ── ESTADO ── */
+const categoriaActiva = ref('ofertas');
+const ordenamiento    = ref('precio-asc');
+const cargando        = ref(false);
+const todosProductos  = ref([]);
+const pagina          = ref(1);
+
+/* ── COMPUTADOS ── */
+const productosOrdenados = computed(() => {
+  const arr = [...todosProductos.value];
+  const [campo, dir] = ordenamiento.value.split('-');
+  arr.sort((a, b) => {
+    const va = campo === 'precio' ? a.precio : a.nombre.toLowerCase();
+    const vb = campo === 'precio' ? b.precio : b.nombre.toLowerCase();
+    return dir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+  });
+  return arr;
 });
 
-const marcas = ['Lenovo', 'Dell', 'Logitech', 'TP-Link', 'HP', 'Samsung'];
+const productosVisibles = computed(() =>
+  productosOrdenados.value.slice(0, pagina.value * PRODUCTOS_POR_PAGINA)
+);
 
-const propuestas = [
-  {
-    icono: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
-    titulo: 'Catálogo especializado',
-    descripcion: 'Más de 500 productos tecnológicos seleccionados para empresas: portátiles, monitores, redes, periféricos y más.',
-  },
-  {
-    icono: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
-    titulo: 'Gestión de pedidos',
-    descripcion: 'Seguimiento en tiempo real desde el despacho hasta la entrega. Historial completo de compras de tu empresa.',
-  },
-  {
-    icono: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
-    titulo: 'Facturación electrónica',
-    descripcion: 'Facturas en PDF con NIT y datos de tu empresa, disponibles para descarga inmediata después de cada compra.',
-  },
-];
+const hayMas = computed(() =>
+  productosVisibles.value.length < todosProductos.value.length
+);
 
-const stats = [
-  { valor: '+500', etiqueta: 'productos tecnológicos' },
-  { valor: '+200', etiqueta: 'empresas confían en nosotros' },
-  { valor: '24h', etiqueta: 'tiempo de despacho' },
-];
+/* ── CARGA ── */
+async function cargarProductos() {
+  cargando.value = true;
+  pagina.value = 1;
+  try {
+    const url = categoriaActiva.value === 'ofertas'
+      ? '/api/productos/listar'
+      : `/api/productos/listar?categoria=${encodeURIComponent(categoriaActiva.value)}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const data = json.data ?? [];
+    todosProductos.value = categoriaActiva.value === 'ofertas'
+      ? data.filter(p => p.descuento > 0)
+      : data;
+  } catch {
+    todosProductos.value = [];
+  } finally {
+    cargando.value = false;
+  }
+}
+
+function seleccionarCategoria(id) {
+  if (categoriaActiva.value !== id) categoriaActiva.value = id;
+}
+
+function verMas() {
+  pagina.value += 1;
+}
+
+function manejarTeclaCategoria(e, id) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    seleccionarCategoria(id);
+  }
+}
+
+watch(categoriaActiva, cargarProductos);
+watch(ordenamiento, () => { pagina.value = 1; });
+
+onMounted(cargarProductos);
 </script>
 
 <template>
-  <div class="page-home">
-    <Navbar />
+  <Navbar />
+
+  <main class="vt-home">
 
     <!-- ── HERO ── -->
-    <section class="hero">
-      <div class="hero__inner">
-        <span class="hero__badge">Plataforma B2B · Colombia</span>
+    <section class="vt-hero-split">
+      <div class="vt-hero-split__inner">
 
-        <h1 class="vt-hero hero__title">
-          Tecnología empresarial<br />
-          <span class="vt-text-gradient">para tu empresa</span>
-        </h1>
-
-        <p class="vt-body-lg hero__subtitle">
-          Adquiere equipos, periféricos y soluciones tecnológicas para tu empresa
-          con facturación electrónica, gestión de pedidos y soporte dedicado.
-        </p>
-
-        <div class="hero__ctas">
-          <RouterLink to="/catalogo" class="btn-vt-primary hero__cta-primary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-            Ver catálogo
-          </RouterLink>
-          <RouterLink to="/auth?modo=registro" class="btn-vt-secondary">
-            Crear cuenta gratis
-          </RouterLink>
-        </div>
-
-        <div class="hero__marcas">
-          <span class="hero__marcas-label">Marcas disponibles</span>
-          <div class="hero__marcas-list">
-            <span v-for="marca in marcas" :key="marca" class="hero__marca-chip">{{ marca }}</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── PROPUESTA DE VALOR ── -->
-    <section class="propuesta">
-      <div class="section-inner">
-        <div class="section-header">
-          <h2 class="vt-h2">Todo lo que tu empresa necesita</h2>
-          <p class="vt-body section-header__sub">
-            Una sola plataforma para comprar, gestionar y facturar tecnología empresarial.
+        <!-- Columna izquierda -->
+        <div class="vt-hero-split__content">
+          <h1 class="vt-h1">Tecnología que <span class="vt-text-gradient">transforma</span> tu empresa</h1>
+          <p class="vt-body-lg vt-hero-split__subtitle">
+            Lo último en tecnología para impulsar la productividad, innovación y crecimiento de tu negocio.
           </p>
+
+          <ul class="vt-hero-split__trust" aria-label="Beneficios">
+            <li>
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 1.5 L18 5 V10 C18 14.5 14.5 17.8 10 19 C5.5 17.8 2 14.5 2 10 V5 Z"/>
+                <path d="M7 10 L9.5 12.5 L13.5 8"/>
+              </svg>
+              Compra segura
+            </li>
+            <li>
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="7" width="16" height="10" rx="2"/>
+                <path d="M5 7V5a5 5 0 0 1 10 0v2"/>
+                <circle cx="10" cy="12" r="1.5"/>
+              </svg>
+              Envíos a toda Colombia
+            </li>
+            <li>
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 7h14l-1.5 9H4.5L3 7Z"/>
+                <path d="M7 7V5a3 3 0 0 1 6 0v2"/>
+              </svg>
+              Garantía por fabricantes
+            </li>
+          </ul>
+
+          <div class="vt-hero-split__actions">
+            <RouterLink to="/catalogo" class="btn-vt-primary">Ver productos</RouterLink>
+            <RouterLink to="/auth?modo=registro" class="btn-vt-secondary">Crear cuenta</RouterLink>
+          </div>
         </div>
-        <div class="propuesta__grid">
-          <div v-for="item in propuestas" :key="item.titulo" class="propuesta__card">
-            <div class="propuesta__icon" v-html="item.icono"></div>
-            <h3 class="vt-h3 propuesta__title">{{ item.titulo }}</h3>
-            <p class="vt-body propuesta__desc">{{ item.descripcion }}</p>
+
+        <!-- Columna derecha: placeholder imagen -->
+        <div class="vt-hero-split__placeholder" aria-label="Imagen promocional pendiente">
+          <svg aria-hidden="true" class="vt-hero-split__placeholder-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="10" width="56" height="44" rx="4"/>
+            <circle cx="22" cy="26" r="5"/>
+            <path d="M4 44 L18 30 L28 40 L38 28 L60 54"/>
+          </svg>
+          <span class="vt-hero-split__placeholder-text">Imagen promocional pendiente</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ── CATEGORÍAS ── -->
+    <section class="vt-categories">
+      <div class="vt-categories__inner">
+        <h2 class="vt-h2 vt-categories__title">Categorías destacadas</h2>
+
+        <div class="vt-categories__grid" role="list">
+          <div
+            v-for="cat in CATEGORIAS"
+            :key="cat.id"
+            class="vt-cat-card"
+            :class="{ 'is-active': categoriaActiva === cat.id }"
+            role="button"
+            tabindex="0"
+            :aria-pressed="categoriaActiva === cat.id"
+            :aria-label="cat.label"
+            @click="seleccionarCategoria(cat.id)"
+            @keydown="manejarTeclaCategoria($event, cat.id)"
+          >
+            <!-- Precios imperdibles -->
+            <svg v-if="cat.id === 'ofertas'" aria-hidden="true" class="vt-cat-card__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+              <line x1="7" y1="7" x2="7.01" y2="7"/>
+            </svg>
+            <!-- Celulares -->
+            <svg v-else-if="cat.id === 'Celulares'" aria-hidden="true" class="vt-cat-card__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+              <line x1="12" y1="18" x2="12.01" y2="18"/>
+            </svg>
+            <!-- Computadores -->
+            <svg v-else-if="cat.id === 'Computadores'" aria-hidden="true" class="vt-cat-card__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            <!-- TV y Monitores -->
+            <svg v-else-if="cat.id === 'TV y Monitores'" aria-hidden="true" class="vt-cat-card__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="7" width="20" height="15" rx="2" ry="2"/>
+              <polyline points="17 2 12 7 7 2"/>
+            </svg>
+            <!-- Audio -->
+            <svg v-else-if="cat.id === 'Audio'" aria-hidden="true" class="vt-cat-card__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+            <!-- Periféricos -->
+            <svg v-else aria-hidden="true" class="vt-cat-card__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2"/>
+              <path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M10 13h.01M14 13h.01M18 13h.01"/>
+            </svg>
+
+            <span class="vt-cat-card__label">{{ cat.label }}</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ── PRODUCTOS DESTACADOS ── -->
-    <section class="productos" id="ofertas">
-      <div class="section-inner">
-        <div class="section-header">
-          <h2 class="vt-h2">Productos destacados</h2>
-          <p class="vt-body section-header__sub">
-            Selección de los equipos más solicitados por empresas colombianas.
-          </p>
+    <!-- ── BARRA DE ORDENAMIENTO ── -->
+    <div class="vt-sort-bar">
+      <div class="vt-sort-bar__inner">
+        <label class="vt-body vt-sort-bar__label" for="orden">Ordenar por:</label>
+        <select id="orden" class="vt-field__input vt-sort-bar__select" v-model="ordenamiento">
+          <option value="precio-asc">Precio de menor a mayor</option>
+          <option value="precio-desc">Precio de mayor a menor</option>
+          <option value="nombre-asc">Nombre ascendente (A–Z)</option>
+          <option value="nombre-desc">Nombre descendente (Z–A)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ── GRILLA DE PRODUCTOS ── -->
+    <section class="vt-products" aria-label="Productos">
+      <div class="vt-products__inner">
+
+        <!-- Skeletons de carga -->
+        <div v-if="cargando" class="vt-products__grid">
+          <div v-for="n in 8" :key="n" class="vt-skeleton" aria-hidden="true"></div>
         </div>
 
-        <!-- Esqueletos de carga -->
-        <div v-if="cargandoProductos" class="productos__grid">
-          <div v-for="n in 4" :key="n" class="producto-skeleton">
-            <div class="skeleton skeleton--image"></div>
-            <div class="skeleton-body">
-              <div class="skeleton skeleton--line skeleton--short"></div>
-              <div class="skeleton skeleton--line"></div>
-              <div class="skeleton skeleton--line skeleton--medium"></div>
-              <div class="skeleton skeleton--btn"></div>
-            </div>
+        <!-- Sin productos -->
+        <div v-else-if="todosProductos.length === 0" class="vt-empty-state">
+          <svg class="vt-empty-state__icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          <h3 class="vt-empty-state__title">Sin productos en esta categoría</h3>
+          <p class="vt-empty-state__description">Pronto agregaremos más productos. Explora otras categorías.</p>
+        </div>
+
+        <!-- Productos -->
+        <template v-else>
+          <div class="vt-products__grid">
+            <ProductCard
+              v-for="producto in productosVisibles"
+              :key="producto.id"
+              :producto="producto"
+              @agregar="() => {}"
+            />
           </div>
-        </div>
 
-        <div v-else class="productos__grid">
-          <ProductCard
-            v-for="p in productos"
-            :key="p.id"
-            :producto="p"
-          />
-        </div>
-
-        <div class="productos__footer">
-          <RouterLink to="/catalogo" class="btn-vt-secondary">
-            Ver catálogo completo
-          </RouterLink>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── STATS ── -->
-    <section class="stats">
-      <div class="section-inner">
-        <div class="stats__grid">
-          <div v-for="s in stats" :key="s.valor" class="stats__item">
-            <span class="stats__valor vt-hero">{{ s.valor }}</span>
-            <span class="stats__etiqueta vt-body-sm">{{ s.etiqueta }}</span>
+          <div v-if="hayMas" class="vt-products__more">
+            <button class="btn-vt-secondary" @click="verMas">Ver más</button>
           </div>
-        </div>
+        </template>
+
       </div>
     </section>
 
-    <!-- ── CTA FINAL ── -->
-    <section class="cta-final">
-      <div class="section-inner cta-final__inner">
-        <h2 class="vt-h2 cta-final__title">¿Listo para digitalizar tus compras?</h2>
-        <p class="vt-body-lg cta-final__sub">
-          Crea tu cuenta empresarial gratis y empieza a comprar con NIT, factura electrónica y despacho en 24 horas.
-        </p>
-        <RouterLink to="/auth?modo=registro" class="btn-vt-primary cta-final__btn">
-          Empezar ahora — es gratis
-        </RouterLink>
-      </div>
-    </section>
+  </main>
 
-    <Footer />
-  </div>
+  <Footer />
 </template>
 
 <style scoped>
-.page-home { min-height: 100vh; }
+/* ── HOME WRAPPER ── */
+.vt-home {
+  padding-top: 64px;
+  min-height: 100vh;
+}
 
 /* ── HERO ── */
-.hero {
-  padding: 120px 32px 80px;
-  background: linear-gradient(180deg, var(--vt-bg-subtle) 0%, var(--vt-bg-base) 100%);
+.vt-hero-split {
+  background: linear-gradient(160deg, #f5f7fa 0%, #ffffff 60%);
+  padding: 72px 0 64px;
 }
-.hero__inner {
-  max-width: 720px; margin: 0 auto; text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 24px;
-}
-.hero__badge {
-  display: inline-block; padding: 4px 16px;
-  border: 1px solid rgba(20,144,242,0.35);
-  border-radius: var(--vt-radius-full); background: var(--vt-info-bg);
-  font-size: 0.875rem; font-weight: 600; color: var(--vt-blue);
-}
-.hero__title { color: var(--vt-text-primary); margin: 0; }
-.hero__subtitle { color: var(--vt-text-muted); max-width: 560px; margin: 0; }
-.hero__ctas { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
-.hero__cta-primary { font-size: 1.0625rem; padding: 12px 28px; }
-
-.hero__marcas { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 8px; }
-.hero__marcas-label { font-size: 0.75rem; font-weight: 600; color: var(--vt-text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
-.hero__marcas-list { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.hero__marca-chip {
-  padding: 4px 14px; border: 1px solid var(--vt-border-light);
-  border-radius: var(--vt-radius-full); background: var(--vt-bg-base);
-  font-size: 0.8125rem; font-weight: 600; color: var(--vt-text-secondary);
+.vt-hero-split__inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 56px;
+  align-items: center;
 }
 
-/* ── SECCIONES COMUNES ── */
-.section-inner { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
-.section-header { text-align: center; margin-bottom: 48px; }
-.section-header h2 { color: var(--vt-text-primary); margin: 0 0 12px 0; }
-.section-header__sub { color: var(--vt-text-muted); margin: 0; }
-
-/* ── PROPUESTA ── */
-.propuesta { padding: 80px 0; background: var(--vt-bg-base); }
-.propuesta__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-.propuesta__card {
-  background: var(--vt-bg-subtle); border-radius: var(--vt-radius-xl);
-  padding: 32px 28px; display: flex; flex-direction: column; gap: 16px;
+.vt-hero-split__content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
-.propuesta__icon :deep(svg) { width: 40px; height: 40px; color: var(--vt-blue); }
-.propuesta__title { color: var(--vt-text-primary); margin: 0; }
-.propuesta__desc { color: var(--vt-text-muted); margin: 0; }
+
+.vt-hero-split__subtitle {
+  color: var(--vt-text-secondary);
+  max-width: 480px;
+}
+
+.vt-hero-split__trust {
+  list-style: none;
+  padding: 0; margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vt-hero-split__trust li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--vt-text-secondary);
+}
+.vt-hero-split__trust li svg {
+  width: 20px; height: 20px;
+  flex-shrink: 0;
+  color: var(--vt-blue);
+}
+
+.vt-hero-split__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.vt-hero-split__placeholder {
+  background: var(--vt-bg-subtle);
+  border-radius: var(--vt-radius-xl);
+  border: 2px dashed var(--vt-border-light);
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px;
+}
+.vt-hero-split__placeholder-icon {
+  width: 72px; height: 72px;
+  color: var(--vt-text-disabled);
+}
+.vt-hero-split__placeholder-text {
+  font-size: 0.9375rem;
+  color: var(--vt-text-muted);
+  text-align: center;
+}
+
+/* ── CATEGORÍAS ── */
+.vt-categories {
+  background: var(--vt-bg-base);
+  padding: 56px 0 48px;
+}
+.vt-categories__inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+.vt-categories__title {
+  text-align: center;
+  margin-bottom: 32px;
+  color: var(--vt-text-primary);
+}
+
+.vt-categories__grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+}
+
+.vt-cat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 12px;
+  background: var(--vt-bg-card);
+  border: 1px solid var(--vt-border-light);
+  border-radius: var(--vt-radius-lg);
+  box-shadow: var(--vt-shadow-card);
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  text-align: center;
+  color: var(--vt-text-secondary);
+}
+.vt-cat-card:hover {
+  box-shadow: var(--vt-shadow-card-hover);
+  transform: translateY(-2px);
+  border-color: var(--vt-border-active);
+  color: var(--vt-blue);
+}
+.vt-cat-card:focus-visible {
+  box-shadow: 0 0 0 3px rgba(20, 144, 242, 0.25);
+  border-color: var(--vt-blue);
+}
+.vt-cat-card.is-active {
+  border-color: var(--vt-blue);
+  background: var(--vt-info-bg);
+  color: var(--vt-blue);
+  box-shadow: var(--vt-shadow-card-hover);
+}
+
+.vt-cat-card__icon {
+  width: 36px; height: 36px;
+  flex-shrink: 0;
+}
+.vt-cat-card__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* ── SORT BAR ── */
+.vt-sort-bar {
+  background: var(--vt-bg-subtle);
+  border-top: 1px solid var(--vt-border-light);
+  border-bottom: 1px solid var(--vt-border-light);
+  padding: 14px 0;
+}
+.vt-sort-bar__inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.vt-sort-bar__label {
+  white-space: nowrap;
+  color: var(--vt-text-secondary);
+  font-weight: 500;
+}
+.vt-sort-bar__select {
+  width: auto;
+  min-width: 220px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
 
 /* ── PRODUCTOS ── */
-.productos { padding: 80px 0; background: var(--vt-bg-subtle); }
-.productos__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-.productos__footer { text-align: center; margin-top: 40px; }
-
-/* Esqueletos */
-.producto-skeleton {
-  background: var(--vt-bg-card); border: 1px solid var(--vt-border-light);
-  border-radius: var(--vt-radius-lg); overflow: hidden;
+.vt-products {
+  padding: 48px 0 80px;
+  background: var(--vt-bg-base);
 }
-.skeleton { background: #E5E7EB; border-radius: 6px; animation: shimmer 1.5s infinite; }
-@keyframes shimmer {
+.vt-products__inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.vt-products__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+.vt-products__more {
+  display: flex;
+  justify-content: center;
+  margin-top: 40px;
+}
+
+.vt-skeleton {
+  background: var(--vt-bg-subtle);
+  border-radius: var(--vt-radius-lg);
+  height: 320px;
+  animation: vt-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes vt-shimmer {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  50%       { opacity: 0.5; }
 }
-.skeleton--image { height: 180px; border-radius: 0; }
-.skeleton-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.skeleton--line { height: 14px; }
-.skeleton--short { width: 40%; }
-.skeleton--medium { width: 70%; }
-.skeleton--btn { height: 40px; border-radius: var(--vt-radius-md); margin-top: 8px; }
 
-/* ── STATS ── */
-.stats {
-  padding: 64px 0;
-  background: var(--vt-gradient);
+.vt-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 80px 24px;
+  gap: 12px;
 }
-.stats__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-.stats__item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.stats__valor { color: #FFFFFF; }
-.stats__etiqueta { color: rgba(255,255,255,0.8); text-align: center; }
-
-/* ── CTA FINAL ── */
-.cta-final { padding: 80px 0; background: var(--vt-bg-subtle); }
-.cta-final__inner { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 20px; }
-.cta-final__title { color: var(--vt-text-primary); margin: 0; }
-.cta-final__sub { color: var(--vt-text-muted); max-width: 520px; margin: 0; }
-.cta-final__btn { font-size: 1.0625rem; padding: 14px 32px; }
+.vt-empty-state__icon {
+  width: 56px; height: 56px;
+  color: var(--vt-text-disabled);
+}
+.vt-empty-state__title {
+  font-size: 1.25rem; font-weight: 600;
+  color: var(--vt-text-secondary); margin: 0;
+}
+.vt-empty-state__description {
+  font-size: 1rem; color: var(--vt-text-muted);
+  max-width: 340px; margin: 0;
+}
 
 /* ── RESPONSIVE ── */
 @media (max-width: 1023px) {
-  .productos__grid { grid-template-columns: repeat(2, 1fr); }
+  .vt-categories__grid { grid-template-columns: repeat(3, 1fr); }
+  .vt-products__grid   { grid-template-columns: repeat(3, 1fr); }
 }
+
 @media (max-width: 767px) {
-  .hero { padding: 96px 20px 60px; }
-  .section-inner { padding: 0 20px; }
-  .propuesta { padding: 60px 0; }
-  .propuesta__grid { grid-template-columns: 1fr; }
-  .productos { padding: 60px 0; }
-  .productos__grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
-  .stats__grid { grid-template-columns: 1fr; gap: 32px; }
-  .cta-final { padding: 60px 0; }
+  .vt-home { padding-top: 56px; }
+
+  .vt-hero-split { padding: 48px 0 40px; }
+  .vt-hero-split__inner {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    padding: 0 20px;
+  }
+  .vt-hero-split__placeholder { min-height: 220px; }
+
+  .vt-categories { padding: 40px 0 32px; }
+  .vt-categories__inner { padding: 0 20px; }
+  .vt-categories__grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+  .vt-sort-bar__inner { padding: 0 20px; flex-wrap: wrap; }
+  .vt-sort-bar__select { width: 100%; min-width: unset; }
+
+  .vt-products { padding: 32px 0 56px; }
+  .vt-products__inner { padding: 0 20px; }
+  .vt-products__grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
 }
-@media (max-width: 480px) {
-  .hero__title { font-size: 1.953rem; }
-  .productos__grid { grid-template-columns: 1fr; }
+
+@media (max-width: 479px) {
+  .vt-hero-split__actions { flex-direction: column; }
+  .vt-hero-split__actions a { text-align: center; }
+  .vt-categories__grid { grid-template-columns: repeat(2, 1fr); }
+  .vt-products__grid   { grid-template-columns: 1fr; }
 }
 </style>
