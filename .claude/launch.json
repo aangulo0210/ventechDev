@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ventech-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["app.js"],
+      "port": 3000,
+      "autoPort": false
+    },
+    {
+      "name": "ventech-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    }
+  ]
+}
