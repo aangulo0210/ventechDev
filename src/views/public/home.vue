@@ -29,8 +29,8 @@ const productosOrdenados = computed(() => {
   const arr = [...todosProductos.value];
   const [campo, dir] = ordenamiento.value.split('-');
   arr.sort((a, b) => {
-    const va = campo === 'precio' ? a.precio : a.nombre.toLowerCase();
-    const vb = campo === 'precio' ? b.precio : b.nombre.toLowerCase();
+    const va = campo === 'precio' ? parseFloat(a.precio) : a.nombre.toLowerCase();
+    const vb = campo === 'precio' ? parseFloat(b.precio) : b.nombre.toLowerCase();
     return dir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
   });
   return arr;
@@ -97,9 +97,9 @@ onMounted(cargarProductos);
 
         <!-- Columna izquierda -->
         <div class="vt-hero-split__content">
-          <h1 class="vt-h1">Tecnología que <span class="vt-text-gradient">transforma</span> tu empresa</h1>
+          <h1 class="vt-h1">Tecnología que <span class="vt-text-gradient">transforma</span> tu día a día</h1>
           <p class="vt-body-lg vt-hero-split__subtitle">
-            Lo último en tecnología para impulsar la productividad, innovación y crecimiento de tu negocio.
+            La tecnología más avanzada del mercado, diseñada para potenciar tu día a día. Descubre nuestra nueva colección.
           </p>
 
           <ul class="vt-hero-split__trust" aria-label="Beneficios">
